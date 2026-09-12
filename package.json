@@ -1,0 +1,15 @@
+{
+  "name": "discord-new-release-bot",
+  "version": "1.0.0",
+  "description": "MusicBrainz ベースの新譜アナウンス Discord Bot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.15.3",
+    "dotenv": "^16.4.5",
+    "node-fetch": "^3.3.2"
+  }
+}
