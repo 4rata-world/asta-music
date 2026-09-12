@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActivityType } = require('discord.js');
 const MusicBrainzPoller = require('./poller');
 const config = require('./config');
 
@@ -11,8 +11,9 @@ let poller = null;
 
 client.once('ready', async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
+  client.user.setActivity('/help', { type: ActivityType.Playing });
 
-  const channel = await client.channels.fetch(config.ANNOUNCE_CHANNEL_ID).catch(() => null);
+　const channel = await client.channels.fetch(config.ANNOUNCE_CHANNEL_ID).catch(() => null);
   if (!channel) {
     console.error('❌ ANNOUNCE_CHANNEL_ID が見つかりません。.env を確認してください。');
     process.exit(1);
