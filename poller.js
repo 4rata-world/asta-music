@@ -3,7 +3,7 @@ const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...ar
 const MB_BASE = 'https://musicbrainz.org/ws/2';
 const CAA_BASE = 'https://coverartarchive.org/release';
 const HEADERS = {
-  'User-Agent': 'DiscordNewReleaseBot/1.0 (your@email.com)',
+  'User-Agent': 'DiscordNewReleaseBot/1.0 (contact@example.com)',
   Accept: 'application/json',
 };
 
@@ -14,12 +14,12 @@ class MusicBrainzPoller {
   constructor(config, onNewRelease) {
     this.config = config;
     this.onNewRelease = onNewRelease;
-    this.seenIds = new Set(); // 通知済みリリースIDを記録
+    this.seenIds = new Set();
     this.initialized = false;
   }
 
   start() {
-    this._poll(); // 初回即実行
+    this._poll();
     setInterval(() => this._poll(), this.config.POLL_INTERVAL_MINUTES * 60 * 1000);
   }
 
@@ -34,11 +34,10 @@ class MusicBrainzPoller {
         this.seenIds.add(release.id);
 
         if (this.initialized) {
-          // カバーアートを非同期で取得（失敗しても通知は行う）
           release.coverUrl = await this._fetchCoverUrl(release.id);
           await this.onNewRelease(release);
           newCount++;
-          await sleep(1000); // Discord rate limit 対策
+          await sleep(1000);
         }
       }
 
@@ -62,21 +61,19 @@ class MusicBrainzPoller {
       const url = `${MB_BASE}/release?artist=${artistId}&type=album|single|ep&status=official&limit=10&fmt=json`;
       const data = await this._get(url);
       if (!data?.releases) continue;
-
       for (const r of data.releases) {
         results.push(this._normalize(r, 'artist'));
       }
     }
 
-    // ジャンル指定の新譜（タグ検索）
+    // ジャンル指定の新譜（Lucene クエリで検索）
     for (const genre of this.config.GENRES) {
       await sleep(1100);
-      // 直近30日以内のリリースに絞り込む
       const since = this._daysAgo(30);
-      const url = `${MB_BASE}/release?tag=${encodeURIComponent(genre)}&status=official&date=${since}..&limit=10&fmt=json`;
+      const query = `tag:${genre} AND status:official AND date:[${since} TO *]`;
+      const url = `${MB_BASE}/release?query=${encodeURIComponent(query)}&limit=10&fmt=json`;
       const data = await this._get(url);
       if (!data?.releases) continue;
-
       for (const r of data.releases) {
         results.push(this._normalize(r, genre));
       }
@@ -124,7 +121,7 @@ class MusicBrainzPoller {
   _daysAgo(n) {
     const d = new Date();
     d.setDate(d.getDate() - n);
-    return d.toISOString().slice(0, 10); // YYYY-MM-DD
+    return d.toISOString().slice(0, 10);
   }
 }
 
