@@ -91,7 +91,7 @@ client.on('interactionCreate', async (interaction) => {
   if (commandName === 'help') {
     const embed = new EmbedBuilder()
       .setColor(0x1db954)
-      .setTitle('🎵 新譜アナウンスBot コマンド一覧')
+      .setTitle('Nelo Music bot コマンド一覧')
       .addFields(
         { name: '/help', value: 'このヘルプを表示します', inline: false },
         { name: '/track <mbid>', value: 'アーティストを追跡リストに追加します\nMBIDはmusicbrainz.orgのアーティストページURLの末尾', inline: false },
