@@ -7,10 +7,10 @@
     "start": "node index.js",
     "dev": "node --watch index.js"
   },
-  "dependencies": {
+    "dependencies": {
     "discord.js": "^14.15.3",
     "dotenv": "^16.4.5",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
     "pg": "^8.12.0"
   }
 }
