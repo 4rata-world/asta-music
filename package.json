@@ -16,6 +16,6 @@
     "node-fetch": "^3.3.2",
     "pg": "^8.12.0",
     "soundcloud-scraper": "^5.0.2",
-    "yt-dlp-wrap": "^2.3.5"
+    "yt-dlp-wrap": "^1.9.7"
   }
 }
