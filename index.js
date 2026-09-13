@@ -85,7 +85,8 @@ client.once('ready', async () => {
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
   await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-  console.log('✅ スラッシュコマンド登録完了');
+console.log(`✅ スラッシュコマンド登録完了: ${commands.length}個`);
+console.log(commands.map(c => c.name).join(', '));
 
   const channel = await client.channels.fetch(config.ANNOUNCE_CHANNEL_ID).catch(() => null);
   if (!channel) {
