@@ -1,6 +1,6 @@
 {
   "name": "discord-new-release-bot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Nelo - Discord Music Bot",
   "main": "index.js",
   "scripts": {
