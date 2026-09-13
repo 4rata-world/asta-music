@@ -8,14 +8,15 @@
     "dev": "node --watch index.js"
   },
   "dependencies": {
-    "opusscript": "^0.0.8",
     "@discordjs/voice": "^0.17.0",
     "discord.js": "^14.15.3",
     "dotenv": "^16.4.5",
     "ffmpeg-static": "^5.2.0",
     "node-fetch": "^3.3.2",
+    "opusscript": "^0.0.8",
     "pg": "^8.12.0",
-    "soundcloud-scraper": "^5.0.2",
-    "yt-dlp-wrap": "^1.9.7"
+    "play-dl": "^1.9.7",
+    "soundcloud-scraper": "^5.0.2"
   }
 }
+
