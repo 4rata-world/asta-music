@@ -11,6 +11,16 @@ const { EmbedBuilder } = require('discord.js');
 const { Readable } = require('stream');
 
 const ytDlp = new YTDlpWrap();
+
+// yt-dlpバイナリを自動ダウンロード
+(async () => {
+  try {
+    await YTDlpWrap.downloadFromGithub();
+    console.log('✅ yt-dlp ダウンロード完了');
+  } catch (e) {
+    console.error('⚠️ yt-dlp ダウンロード失敗:', e.message);
+  }
+})();
 const scClient = new SoundCloud.Client();
 
 const queues = new Map();
