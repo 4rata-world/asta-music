@@ -84,6 +84,7 @@ const commands = [
 ].map((c) => c.toJSON());
 
 client.once('ready', async () => {
+  initDistube(client);
   console.log(`✅ Logged in as ${client.user.tag}`);
   client.user.setActivity('/help', { type: ActivityType.Playing });
 
