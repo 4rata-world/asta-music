@@ -229,21 +229,21 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   if (commandName === 'queue') {
-    const tracks = getQueueList(interaction.guildId);
-    if (tracks.length === 0) {
-      return interaction.reply({ content: '📭 キューは空です', ephemeral: true });
-    }
-    const list = tracks
-      .slice(0, 10)
-      .map((t, i) => `${i === 0 ? '▶️' : `${i + 1}.`} ${t.title} (${t.duration})`)
-      .join('\n');
-    const embed = new EmbedBuilder()
-      .setColor(0xc8714a)
-      .setTitle(`🎵 再生キュー (${tracks.length}曲)`)
-      .setDescription(list);
-    return interaction.reply({ embeds: [embed] });
+  const tracks = getQueueList(interaction.guildId);
+  if (tracks.length === 0) {
+    return interaction.reply({ content: '📭 キューは空です', ephemeral: true });
   }
-});
+  const list = tracks
+    .slice(0, 10)
+    .map((t, i) => `${i === 0 ? '▶️' : `${i + 1}.`} ${t.name} (${t.formattedDuration})`)
+    .join('\n');
+  const embed = new EmbedBuilder()
+    .setColor(0xc8714a)
+    .setTitle(`🎵 再生キュー (${tracks.length}曲)`)
+    .setDescription(list);
+  return interaction.reply({ embeds: [embed] });
+}
+};
 
 function buildEmbed(release) {
   const embed = new EmbedBuilder()
