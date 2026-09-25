@@ -12,7 +12,8 @@ const {
 const MusicBrainzPoller = require('./poller');
 const config = require('./config');
 const db = require('./db');
-const { addToQueue, skipTrack, stopPlayer, getQueueList } = require('./player');
+const { initDistube, addToQueue, skipTrack, stopPlayer, getQueueList } = require('./player');
+
 
 const client = new Client({
   intents: [
