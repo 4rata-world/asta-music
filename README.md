@@ -1,4 +1,4 @@
-# 🎵 Discord 新譜アナウンス Bot
+# Discord 音楽bot
 
 MusicBrainz を定期的にチェックし、指定したアーティストやジャンルの新譜を Discord チャンネルに自動投稿するBotです。
 
