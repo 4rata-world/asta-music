@@ -243,7 +243,7 @@ client.on('interactionCreate', async (interaction) => {
     .setDescription(list);
   return interaction.reply({ embeds: [embed] });
 }
-};
+});
 
 function buildEmbed(release) {
   const embed = new EmbedBuilder()
