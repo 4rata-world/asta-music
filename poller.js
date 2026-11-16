@@ -68,16 +68,19 @@ class MusicBrainzPoller {
 
     // ジャンル指定の新譜（Lucene クエリで検索）
     for (const genre of this.config.GENRES) {
-      await sleep(1100);
-      const since = this._daysAgo(30);
-      const query = `tag:${genre} AND status:official AND date:[${since} TO *]`;
-      const url = `${MB_BASE}/release?query=${encodeURIComponent(query)}&limit=10&fmt=json`;
-      const data = await this._get(url);
-      if (!data?.releases) continue;
-      for (const r of data.releases) {
-        results.push(this._normalize(r, genre));
-      }
-    }
+    try {
+    await sleep(1100);
+    const since = this._daysAgo(30);
+    const query = `tag:"${genre}" AND status:official AND date:[${since} TO *]`;
+    const url = `${MB_BASE}/release?query=${encodeURIComponent(query)}&limit=10&fmt=json`;
+    const data = await this._get(url);
+    if (!data?.releases) continue;
+    for (const r of data.releases) results.push(this._normalize(r, genre));
+  } catch (err) {
+    console.error(`❌ ジャンル ${genre} の取得に失敗:`, err.message);
+  }
+}
+
 
     return results;
   }
