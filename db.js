@@ -17,6 +17,15 @@ async function init() {
       guild_id TEXT PRIMARY KEY,
       channel_id TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS itunes_artists (
+      artist_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS known_releases (
+      release_id TEXT PRIMARY KEY,
+      artist_id TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
   `);
   console.log('✅ DB初期化完了');
 }
@@ -67,9 +76,42 @@ async function getAllGuildChannels() {
   return res.rows;
 }
 
+// ── iTunes ──
+async function getItunesArtists() {
+  const res = await pool.query('SELECT artist_id, name FROM itunes_artists ORDER BY name');
+  return res.rows;
+}
+
+async function addItunesArtist(artistId, name) {
+  await pool.query(
+    'INSERT INTO itunes_artists (artist_id, name) VALUES ($1, $2) ON CONFLICT (artist_id) DO UPDATE SET name = $2',
+    [artistId, name]
+  );
+}
+
+async function removeItunesArtist(artistId) {
+  await pool.query('DELETE FROM known_releases WHERE artist_id = $1', [artistId]);
+  const res = await pool.query('DELETE FROM itunes_artists WHERE artist_id = $1', [artistId]);
+  return res.rowCount > 0;
+}
+
+async function getKnownReleaseIds(artistId) {
+  const res = await pool.query('SELECT release_id FROM known_releases WHERE artist_id = $1', [artistId]);
+  return new Set(res.rows.map((r) => r.release_id));
+}
+
+async function addKnownRelease(releaseId, artistId) {
+  await pool.query(
+    'INSERT INTO known_releases (release_id, artist_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+    [releaseId, artistId]
+  );
+}
+
 module.exports = {
   init,
   getArtists, addArtist, removeArtist,
   getGenres, addGenre, removeGenre,
   setGuildChannel, getGuildChannel, getAllGuildChannels,
+  getItunesArtists, addItunesArtist, removeItunesArtist,
+  getKnownReleaseIds, addKnownRelease,
 };
