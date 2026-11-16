@@ -10,6 +10,7 @@ const {
   PermissionFlagsBits,
 } = require('discord.js');
 const MusicBrainzPoller = require('./poller');
+const { ItunesPoller, searchArtists, lookupArtist } = require('./itunes');
 const config = require('./config');
 const db = require('./db');
 const { initDistube, addToQueue, skipTrack, stopPlayer, getQueueList } = require('./player');
@@ -24,6 +25,7 @@ const client = new Client({
 });
 
 let poller = null;
+let itunesPoller = null;
 
 const commands = [
   // ── 新譜追跡 ──
@@ -39,15 +41,15 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   new SlashCommandBuilder()
     .setName('track')
-    .setDescription('アーティストを追跡リストに追加します')
+    .setDescription('アーティストを追跡リストに追加します（iTunes）')
     .addStringOption((o) =>
-      o.setName('mbid').setDescription('アーティストのMusicBrainz MBID').setRequired(true)
+      o.setName('artist').setDescription('アーティスト名（候補から選択）').setRequired(true).setAutocomplete(true)
     ),
   new SlashCommandBuilder()
     .setName('untrack')
     .setDescription('アーティストを追跡リストから削除します')
     .addStringOption((o) =>
-      o.setName('mbid').setDescription('アーティストのMusicBrainz MBID').setRequired(true)
+      o.setName('artist').setDescription('削除するアーティスト').setRequired(true).setAutocomplete(true)
     ),
   new SlashCommandBuilder()
     .setName('list')
@@ -83,15 +85,16 @@ const commands = [
     .setDescription('現在の再生キューを表示します'),
 ].map((c) => c.toJSON());
 
-client.once('ready', async () => {
+client.once('clientReady', async () => {
   initDistube(client);
   console.log(`✅ Logged in as ${client.user.tag}`);
   client.user.setActivity('/help', { type: ActivityType.Playing });
 
   await db.init();
-  config.ARTIST_MBIDS = await db.getArtists();
+  config.ARTIST_MBIDS = []; // アーティストはiTunesで追跡。MusicBrainzはジャンル追跡のみ
   config.GENRES = await db.getGenres();
-  console.log(`📋 追跡中: アーティスト ${config.ARTIST_MBIDS.length}件, ジャンル ${config.GENRES.length}件`);
+  const itunesArtists = await db.getItunesArtists();
+  console.log(`📋 追跡中: アーティスト ${itunesArtists.length}件, ジャンル ${config.GENRES.length}件`);
 
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
   await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
@@ -99,7 +102,7 @@ client.once('ready', async () => {
   console.log(commands.map(c => c.name).join(', '));
 
   // サーバーごとのチャンネルに新譜通知
-  poller = new MusicBrainzPoller(config, async (release) => {
+  const announce = async (release) => {
     const embed = buildEmbed(release);
     const guildChannels = await db.getAllGuildChannels();
 
@@ -115,13 +118,41 @@ client.once('ready', async () => {
         console.log(`📢 アナウンス: ${release.title} / ${release.artist} → #${channel.name}`);
       }
     }
-  });
+  };
 
+  poller = new MusicBrainzPoller(config, announce);
   poller.start();
+  itunesPoller = new ItunesPoller(config, db, announce);
+  itunesPoller.start();
   console.log(`🎵 ポーリング開始 (間隔: ${config.POLL_INTERVAL_MINUTES}分)`);
 });
 
 client.on('interactionCreate', async (interaction) => {
+  if (interaction.isAutocomplete()) {
+    try {
+      const focused = interaction.options.getFocused().trim();
+      let choices = [];
+      if (interaction.commandName === 'track') {
+        if (focused.length > 0) {
+          const found = await searchArtists(focused, 10);
+          choices = found.map((a) => ({
+            name: `${a.name}${a.genre ? ` (${a.genre})` : ''}`.slice(0, 100),
+            value: a.id,
+          }));
+        }
+      } else if (interaction.commandName === 'untrack') {
+        const mine = await db.getItunesArtists();
+        choices = mine
+          .filter((a) => a.name.toLowerCase().includes(focused.toLowerCase()))
+          .slice(0, 25)
+          .map((a) => ({ name: a.name.slice(0, 100), value: a.artist_id }));
+      }
+      await interaction.respond(choices);
+    } catch {
+      await interaction.respond([]).catch(() => {});
+    }
+    return;
+  }
   if (!interaction.isChatInputCommand()) return;
   const { commandName } = interaction;
 
@@ -133,8 +164,8 @@ client.on('interactionCreate', async (interaction) => {
         { name: '⚙️ 設定', value: '─────────────', inline: false },
         { name: '/setchannel <channel>', value: '新譜通知を投稿するチャンネルを設定（管理者のみ）', inline: false },
         { name: '📢 新譜通知', value: '─────────────', inline: false },
-        { name: '/track <mbid>', value: 'アーティストを追跡リストに追加', inline: false },
-        { name: '/untrack <mbid>', value: 'アーティストを追跡リストから削除', inline: false },
+        { name: '/track <名前>', value: 'アーティストを追跡リストに追加（候補から選択）', inline: false },
+        { name: '/untrack <名前>', value: 'アーティストを追跡リストから削除', inline: false },
         { name: '/genre <name>', value: 'ジャンルを追跡リストに追加（例: j-pop）', inline: false },
         { name: '/ungenre <name>', value: 'ジャンルを追跡リストから削除', inline: false },
         { name: '/list', value: '追跡中のアーティスト・ジャンル一覧', inline: false },
@@ -144,7 +175,7 @@ client.on('interactionCreate', async (interaction) => {
         { name: '/stop', value: '再生停止してボイスチャンネルから退出', inline: false },
         { name: '/queue', value: '再生キューを表示', inline: false },
       )
-      .setFooter({ text: 'Powered by MusicBrainz · YouTube · SoundCloud' });
+      .setFooter({ text: 'Powered by iTunes · MusicBrainz · YouTube · SoundCloud' });
     return interaction.reply({ embeds: [embed] });
   }
 
@@ -157,24 +188,41 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   if (commandName === 'track') {
-    const mbid = interaction.options.getString('mbid').trim();
-    const artists = await db.getArtists();
-    if (artists.includes(mbid)) {
-      return interaction.reply({ content: `⚠️ \`${mbid}\` はすでに追跡中です`, ephemeral: true });
+    const input = interaction.options.getString('artist').trim();
+    await interaction.deferReply();
+    try {
+      let artist = null;
+      if (/^\d+$/.test(input)) {
+        artist = await lookupArtist(input);
+      } else {
+        const found = await searchArtists(input, 1);
+        artist = found[0] || null;
+      }
+      if (!artist) {
+        return interaction.editReply({ content: `⚠️ 「${input}」はiTunesで見つかりませんでした` });
+      }
+      const exists = (await db.getItunesArtists()).some((a) => a.artist_id === artist.id);
+      if (exists) {
+        return interaction.editReply({ content: `⚠️ **${artist.name}** はすでに追跡中です` });
+      }
+      await db.addItunesArtist(artist.id, artist.name);
+      if (itunesPoller) await itunesPoller.seedArtist(artist.id);
+      return interaction.editReply({ content: `✅ **${artist.name}** を追跡リストに追加しました！` });
+    } catch (err) {
+      console.error('track error:', err.message);
+      return interaction.editReply({ content: '❌ 追加に失敗しました。しばらくしてからもう一度お試しください' });
     }
-    await db.addArtist(mbid);
-    config.ARTIST_MBIDS = await db.getArtists();
-    return interaction.reply({ content: `✅ MBID \`${mbid}\` を追跡リストに追加しました！` });
   }
 
   if (commandName === 'untrack') {
-    const mbid = interaction.options.getString('mbid').trim();
-    const removed = await db.removeArtist(mbid);
-    if (!removed) {
-      return interaction.reply({ content: `⚠️ \`${mbid}\` は追跡リストにありません`, ephemeral: true });
+    const id = interaction.options.getString('artist').trim();
+    const mine = await db.getItunesArtists();
+    const target = mine.find((a) => a.artist_id === id) || mine.find((a) => a.name === id);
+    if (!target) {
+      return interaction.reply({ content: `⚠️ 「${id}」は追跡リストにありません`, ephemeral: true });
     }
-    config.ARTIST_MBIDS = await db.getArtists();
-    return interaction.reply({ content: `🗑️ MBID \`${mbid}\` を追跡リストから削除しました` });
+    await db.removeItunesArtist(target.artist_id);
+    return interaction.reply({ content: `🗑️ **${target.name}** を追跡リストから削除しました` });
   }
 
   if (commandName === 'genre') {
@@ -199,15 +247,15 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   if (commandName === 'list') {
-    const artists = await db.getArtists();
+    const artists = await db.getItunesArtists();
     const genres = await db.getGenres();
-    const artistStr = artists.length > 0 ? artists.map((id) => `\`${id}\``).join('\n') : 'なし';
+    const artistStr = artists.length > 0 ? artists.map((a) => a.name).join('\n').slice(0, 1024) : 'なし';
     const genreStr = genres.length > 0 ? genres.map((g) => `\`${g}\``).join(', ') : 'なし';
     const embed = new EmbedBuilder()
       .setColor(0xc8714a)
       .setTitle('📋 追跡リスト')
       .addFields(
-        { name: 'アーティスト (MBID)', value: artistStr, inline: false },
+        { name: 'アーティスト', value: artistStr, inline: false },
         { name: 'ジャンル', value: genreStr, inline: false },
       );
     return interaction.reply({ embeds: [embed] });
@@ -255,7 +303,7 @@ function buildEmbed(release) {
       { name: 'リリース日', value: release.date || '不明', inline: true },
       { name: 'タイプ', value: release.type || '不明', inline: true },
     )
-    .setFooter({ text: 'MusicBrainz より取得' })
+    .setFooter({ text: release.footer || 'MusicBrainz より取得' })
     .setTimestamp();
 
   if (release.genres && release.genres.length > 0) {
