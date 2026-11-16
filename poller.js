@@ -127,5 +127,6 @@ class MusicBrainzPoller {
     return d.toISOString().slice(0, 10);
   }
 }
+'User-Agent': 'DiscordNewReleaseBot/1.0 (https://github.com/4rata-world/asta-music)',
 
 module.exports = MusicBrainzPoller;
