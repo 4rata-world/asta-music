@@ -8,6 +8,9 @@ const {
   Routes,
   SlashCommandBuilder,
   PermissionFlagsBits,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
 } = require('discord.js');
 const MusicBrainzPoller = require('./poller');
 const { ItunesPoller, searchArtists, lookupArtist } = require('./itunes');
@@ -83,6 +86,23 @@ const commands = [
   new SlashCommandBuilder()
     .setName('queue')
     .setDescription('現在の再生キューを表示します'),
+
+  // ── ロールパネル ──
+  (() => {
+    const b = new SlashCommandBuilder()
+      .setName('rolepanel')
+      .setDescription('ロール付与パネルを送信します（管理者のみ）')
+      .addStringOption((o) =>
+        o.setName('title').setDescription('パネルのタイトル').setRequired(true)
+      )
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles);
+    for (let i = 1; i <= 5; i++) {
+      b.addRoleOption((o) =>
+        o.setName(`role${i}`).setDescription(`ロール${i}`).setRequired(i === 1)
+      );
+    }
+    return b;
+  })(),
 ].map((c) => c.toJSON());
 
 client.once('clientReady', async () => {
@@ -153,6 +173,24 @@ client.on('interactionCreate', async (interaction) => {
     }
     return;
   }
+  if (interaction.isButton() && interaction.customId.startsWith('role:')) {
+    const roleId = interaction.customId.slice(5);
+    const role = interaction.guild.roles.cache.get(roleId);
+    if (!role) {
+      return interaction.reply({ content: '⚠️ ロールが見つかりません', ephemeral: true });
+    }
+    try {
+      if (interaction.member.roles.cache.has(roleId)) {
+        await interaction.member.roles.remove(roleId);
+        return interaction.reply({ content: `🗑️ **${role.name}** を外しました`, ephemeral: true });
+      }
+      await interaction.member.roles.add(roleId);
+      return interaction.reply({ content: `✅ **${role.name}** を付与しました`, ephemeral: true });
+    } catch (err) {
+      console.error('rolepanel error:', err.message);
+      return interaction.reply({ content: '❌ 付与に失敗しました（botのロール位置を確認してください）', ephemeral: true });
+    }
+  }
   if (!interaction.isChatInputCommand()) return;
   const { commandName } = interaction;
 
@@ -174,6 +212,8 @@ client.on('interactionCreate', async (interaction) => {
         { name: '/skip', value: '現在の曲をスキップ', inline: false },
         { name: '/stop', value: '再生停止してボイスチャンネルから退出', inline: false },
         { name: '/queue', value: '再生キューを表示', inline: false },
+        { name: '🎭 ロール', value: '─────────────', inline: false },
+        { name: '/rolepanel <title> <role1~5>', value: 'ボタンでロールを付与／解除できるパネルを送信（管理者のみ）', inline: false },
       )
       .setFooter({ text: 'Powered by iTunes · MusicBrainz · YouTube · SoundCloud' });
     return interaction.reply({ embeds: [embed] });
@@ -291,6 +331,44 @@ client.on('interactionCreate', async (interaction) => {
     .setDescription(list);
   return interaction.reply({ embeds: [embed] });
 }
+
+  if (commandName === 'rolepanel') {
+    const title = interaction.options.getString('title');
+    const roles = [1, 2, 3, 4, 5]
+      .map((i) => interaction.options.getRole(`role${i}`))
+      .filter(Boolean);
+
+    const botTop = interaction.guild.members.me.roles.highest.position;
+    const myTop = interaction.member.roles.highest.position;
+    const isOwner = interaction.guild.ownerId === interaction.user.id;
+    const bad = roles.filter(
+      (r) =>
+        r.managed ||
+        r.id === interaction.guildId ||
+        r.position >= botTop ||
+        (!isOwner && r.position >= myTop)
+    );
+    if (bad.length) {
+      return interaction.reply({
+        content: `⚠️ 次のロールは使えません（botや自分より上位、または管理ロール）: ${bad.map((r) => r.name).join(', ')}`,
+        ephemeral: true,
+      });
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0xc8714a)
+      .setTitle(title)
+      .setDescription('ボタンを押すとロールを付与／解除できます\n\n' + roles.map((r) => `• <@&${r.id}>`).join('\n'));
+    const row = new ActionRowBuilder().addComponents(
+      roles.map((r) =>
+        new ButtonBuilder()
+          .setCustomId(`role:${r.id}`)
+          .setLabel(r.name.slice(0, 80))
+          .setStyle(ButtonStyle.Secondary)
+      )
+    );
+    return interaction.reply({ embeds: [embed], components: [row] });
+  }
 });
 
 function buildEmbed(release) {
